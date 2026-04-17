@@ -1,0 +1,86 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { User, Task } from "../types";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+
+export const geminiService = {
+  async suggestTeams(projectDescription: string, members: User[]) {
+    const prompt = `
+      Project Description: ${projectDescription}
+      
+      Team Members:
+      ${members.map(m => `- ${m.name} (${m.role}): Skills: ${m.skills?.join(', ') || 'Not specified'}, Department: ${m.department}`).join('\n')}
+      
+      Based on the project description and member skills/roles, suggest optimal sub-teams. 
+      For each team, provide:
+      1. Team Name
+      2. Purpose
+      3. Members (with why they were chosen)
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are an expert team builder. Output MUST be highly structured with H3 headings and bullet points. AVOID paragraphs. Keep it 'short and sweet'. Each team should be a clear, visually distinct section.",
+      }
+    });
+
+    return response.text;
+  },
+
+  async monitorWorkload(members: User[], tasks: Task[]) {
+    const workloadData = members.map(m => {
+      const userTasks = tasks.filter(t => t.assignees.includes(m.id));
+      return {
+        name: m.name,
+        productivity: m.productivityScore,
+        tasks: userTasks.map(t => ({ title: t.title, priority: t.priority, progress: t.progress, deadline: t.deadline }))
+      };
+    });
+
+    const prompt = `
+      Current Workload Data:
+      ${JSON.stringify(workloadData, null, 2)}
+      
+      Identify overloaded and underutilized members. Recommend task redistribution to balance the load more effectively.
+      Consider task priority, deadlines, and member productivity scores.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are a workload management expert. Output MUST be highly structured using H3 headings and bullet points. AVOID long paragraphs. Use 'Status: OK/WARNING/CRITICAL' for each person. Keep it extremely concise.",
+      }
+    });
+
+    return response.text;
+  },
+
+  async generateDocumentation(tasks: Task[], projectContext: string) {
+    const prompt = `
+      Project Context: ${projectContext}
+      
+      Current Tasks and Progress:
+      ${tasks.map(t => `- ${t.title} (${t.status}): ${t.progress}% done. Deadline: ${t.deadline}`).join('\n')}
+      
+      Generate a professional project documentation/weekly status report.
+      Include:
+      1. Executive Summary
+      2. Key Achievements
+      3. Pending Tasks and Blockers
+      4. Next Steps
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "You are a professional technical writer. Generate documentation using ONLY H3 headings and short, nested bullet points. NO PARAGRAPHS. Focus on speed of reading and clarity.",
+      }
+    });
+
+    return response.text;
+  }
+};

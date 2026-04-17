@@ -1,0 +1,190 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTeamMember(teamId) {
+      return isAuthenticated() && teamId != null && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId) ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isTaskTeamMember(taskData) {
+      return isAuthenticated() && taskData != null && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == taskData.teamId) ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isLeadOfTeam(teamId) {
+      return isAuthenticated() && teamId != null && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Team Lead' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId) ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 150 &&
+             data.role is string && data.role.size() > 0 && data.role.size() < 50 &&
+             (!('teamId' in data) || (data.teamId is string && data.teamId.size() < 100));
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['title', 'priority', 'status', 'creatorId', 'teamId', 'createdAt', 'deadline', 'progress']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.priority in ['low', 'medium', 'high', 'urgent'] &&
+             data.status in ['todo', 'in-progress', 'review', 'done'] &&
+             data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
+             data.teamId is string && data.teamId.size() > 0 && data.teamId.size() < 100 &&
+             (data.createdAt is timestamp || (data.createdAt is string && data.createdAt.size() > 0)) &&
+             data.deadline is string && data.deadline.size() > 0 && data.deadline.size() < 50 &&
+             data.progress is number && data.progress >= 0 && data.progress <= 100 &&
+             (!('description' in data) || data.description is string) &&
+             (!('assignees' in data) || data.assignees is list);
+    }
+
+    function isValidTeam(data) {
+      return data.keys().hasAll(['name', 'leadId', 'joinCode', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.leadId is string && data.leadId.size() > 0 && data.leadId.size() < 100 &&
+             data.joinCode is string && data.joinCode.size() > 0 && data.joinCode.size() < 50 &&
+             data.createdAt is string && data.createdAt.size() > 0 && data.createdAt.size() < 50;
+    }
+
+    function isValidJoinRequest(data) {
+      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'teamId', 'teamName', 'status', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.userEmail is string && data.userEmail.size() > 0 &&
+             data.teamId is string && data.teamId.size() > 0 &&
+             data.teamName is string && data.teamName.size() > 0 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is string && data.createdAt.size() > 0;
+    }
+
+    function isValidApp(data) {
+      return data.keys().hasAll(['name', 'url', 'loginId', 'password', 'teamId', 'creatorId', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.url is string && data.url.size() > 0 && data.url.size() < 500 &&
+             data.loginId is string && data.loginId.size() > 0 && data.loginId.size() < 200 &&
+             data.password is string && data.password.size() > 0 && data.password.size() < 200 &&
+             data.teamId is string && data.teamId.size() > 0 &&
+             data.creatorId is string && data.creatorId.size() > 0 &&
+             (data.createdAt is timestamp || (data.createdAt is string && data.createdAt.size() > 0));
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        isOwner(userId) || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid) ||
+                    (isAuthenticated() && isValidUser(request.resource.data) &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teamId', 'role']) && 
+                     exists(/databases/$(database)/documents/joinRequests/$(userId)) &&
+                     get(/databases/$(database)/documents/joinRequests/$(userId)).data.status == 'approved' &&
+                     get(/databases/$(database)/documents/teams/$(get(/databases/$(database)/documents/joinRequests/$(userId)).data.teamId)).data.leadId == request.auth.uid);
+    }
+
+    match /joinRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadId == request.auth.uid ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow create: if isAuthenticated() && isValidJoinRequest(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid && requestId == request.auth.uid && 
+                    request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && (
+        (get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadId == request.auth.uid);
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isTaskTeamMember(resource.data);
+      allow create: if isAuthenticated() && isValidTask(request.resource.data) && 
+                    isLeadOfTeam(request.resource.data.teamId);
+      allow update: if isAuthenticated() && isValidTask(request.resource.data) && (
+                    isLeadOfTeam(resource.data.teamId) || 
+                    (isTaskTeamMember(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subtasks', 'progress', 'status']))
+                  );
+      allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
+    }
+
+    match /teams/{teamId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTeam(request.resource.data) && request.resource.data.leadId == request.auth.uid;
+      allow update: if isAuthenticated() && isValidTeam(request.resource.data) && request.resource.data.leadId == resource.data.leadId;
+      allow delete: if isAuthenticated() && resource.data.leadId == request.auth.uid;
+    }
+
+    match /apps/{appId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow create: if isTeamMember(request.resource.data.teamId);
+      allow update: if isTeamMember(resource.data.teamId);
+      allow delete: if isTeamMember(resource.data.teamId);
+    }
+
+    match /securityLogs/{logId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow create: if isAuthenticated() && request.resource.data.teamId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId;
+    }
+
+    match /teamSettings/{teamId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow write: if isAuthenticated() && isLeadOfTeam(teamId);
+    }
+
+    match /favorites/{favoriteId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /roadmapPhases/{phaseId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow write: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId || resource.data.teamId);
+    }
+
+    match /goals/{goalId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
+        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
+      );
+      allow write: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId || resource.data.teamId);
+    }
+  }
+}
