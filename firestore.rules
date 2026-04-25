@@ -56,7 +56,11 @@ service cloud.firestore {
              data.deadline is string && data.deadline.size() > 0 && data.deadline.size() < 50 &&
              data.progress is number && data.progress >= 0 && data.progress <= 100 &&
              (!('description' in data) || data.description is string) &&
-             (!('assignees' in data) || data.assignees is list);
+             (!('assignees' in data) || data.assignees is list) &&
+             (!('reminderSent' in data) || data.reminderSent is bool) &&
+             (!('reminderIntervalMinutes' in data) || data.reminderIntervalMinutes is number) &&
+             (!('lastReminderSentAt' in data) || data.lastReminderSentAt is string) &&
+             (!('assignedEmailSent' in data) || data.assignedEmailSent is bool);
     }
 
     function isValidTeam(data) {
@@ -126,7 +130,7 @@ service cloud.firestore {
                     isLeadOfTeam(request.resource.data.teamId);
       allow update: if isAuthenticated() && isValidTask(request.resource.data) && (
                     isLeadOfTeam(resource.data.teamId) || 
-                    (isTaskTeamMember(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subtasks', 'progress', 'status']))
+                    (isTaskTeamMember(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subtasks', 'progress', 'status', 'reminderSent', 'lastReminderSentAt']))
                   );
       allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
     }
@@ -176,7 +180,9 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
         (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
       );
-      allow write: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId || resource.data.teamId);
+      allow create: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId);
+      allow update: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
+      allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
     }
 
     match /goals/{goalId} {
@@ -184,7 +190,21 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
         (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
       );
-      allow write: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId || resource.data.teamId);
+      allow create: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId);
+      allow update: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
+      allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+    }
+
+    match /automatedEmails/{emailId} {
+      allow read: if isTaskTeamMember(resource.data);
+      allow create: if isTaskTeamMember(request.resource.data);
     }
   }
 }

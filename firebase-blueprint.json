@@ -123,9 +123,29 @@
         "subgoals": { "type": "array", "items": { "type": "object" } }
       },
       "required": ["teamId", "title", "category", "progress", "deadline", "subgoals"]
+    },
+    "AutomatedEmail": {
+      "title": "Automated Email",
+      "description": "Logs of automated reminder emails sent to users.",
+      "type": "object",
+      "properties": {
+        "teamId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "taskTitle": { "type": "string" },
+        "recipientIds": { "type": "array", "items": { "type": "string" } },
+        "recipientEmails": { "type": "array", "items": { "type": "string" } },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sentAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teamId", "taskId", "taskTitle", "recipientIds", "recipientEmails", "subject", "body", "sentAt"]
     }
   },
   "firestore": {
+    "/automatedEmails/{emailId}": {
+      "schema": { "$ref": "#/entities/AutomatedEmail" },
+      "description": "Stores logged automated emails sent before task deadlines."
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles."

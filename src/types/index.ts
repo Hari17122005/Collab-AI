@@ -1,6 +1,5 @@
-export type Priority = 'low' | 'medium' | 'high' | 'urgent';
-export type Status = 'todo' | 'in-progress' | 'review' | 'done';
-
+export type Priority = "low" | "medium" | "high" | "urgent";
+export type Status = "todo" | "in-progress" | "review" | "done";
 export interface User {
   id: string;
   name: string;
@@ -12,11 +11,10 @@ export interface User {
   healthScore: number;
   productivityScore: number;
   tasksCompleted: number;
-  punctuality: number; // percentage
-  engagement: number; // percentage
-  skills?: string[];
+  punctuality: number;
+  /* percentage */ engagement: number;
+  /* percentage */ skills?: string[];
 }
-
 export interface App {
   id: string;
   name: string;
@@ -27,17 +25,15 @@ export interface App {
   creatorId: string;
   createdAt: any;
 }
-
 export interface SecurityLog {
   id: string;
   userId: string;
   userName: string;
   action: string;
-  type: 'security' | 'auth' | 'system' | 'warning';
+  type: "security" | "auth" | "system" | "warning";
   teamId: string;
   createdAt: any;
 }
-
 export interface TeamSettings {
   id: string;
   teamId: string;
@@ -46,7 +42,6 @@ export interface TeamSettings {
   apiAccess: boolean;
   twoFactorRequired: boolean;
 }
-
 export interface Team {
   id: string;
   name: string;
@@ -54,24 +49,29 @@ export interface Team {
   joinCode: string;
   createdAt: string;
 }
-
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  createdAt: any;
+}
 export interface Task {
   id: string;
   title: string;
   description: string;
   priority: Priority;
   status: Status;
-  assignees: string[]; // User IDs
-  creatorId: string;
+  assignees: string[];
+  /* User IDs */ creatorId: string;
   createdAt: string;
   updatedAt?: string;
   deadline: string;
   progress: number;
   comments: Comment[];
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: "low" | "medium" | "high";
   subtasks?: { id: string; title: string; completed: boolean }[];
 }
-
 export interface Comment {
   id: string;
   taskId: string;
@@ -79,18 +79,16 @@ export interface Comment {
   content: string;
   createdAt: string;
 }
-
 export interface Notification {
   id: string;
   userId: string;
   title: string;
   message: string;
-  type: 'task' | 'mention' | 'system' | 'deadline';
+  type: "task" | "mention" | "system" | "deadline";
   read: boolean;
   createdAt: string;
   link?: string;
 }
-
 export interface JoinRequest {
   id: string;
   userId: string;
@@ -98,10 +96,9 @@ export interface JoinRequest {
   userEmail: string;
   teamId: string;
   teamName: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected";
   createdAt: string;
 }
-
 export interface Favorite {
   id: string;
   userId: string;
@@ -111,7 +108,6 @@ export interface Favorite {
   category: string;
   updatedAt: any;
 }
-
 export interface TeamStats {
   totalTasks: number;
   completedTasks: number;
