@@ -8,12 +8,27 @@ import { Button } from "./ui/Button";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../hooks/useData";
 import { GoogleGenAI } from "@google/genai";
-/* Support both AI Studio's injected process.env AND standard local Vite import.meta.env */ const apiKey =
-  typeof process !== "undefined" && process.env && process.env.GEMINI_API_KEY
+/* Support both AI Studio's injected process.env AND standard local Vite import.meta.env */ const getApiKey = () => {
+  return typeof process !== "undefined" && process.env && process.env.GEMINI_API_KEY
     ? process.env.GEMINI_API_KEY
     // @ts-ignore
     : import.meta.env.VITE_GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey as string });
+};
+
+let aiClient: GoogleGenAI | null = null;
+const getAi = (): GoogleGenAI => {
+  if (!aiClient) {
+    const key = getApiKey();
+    if (!key) {
+      console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY or GEMINI_API_KEY.");
+      // Provide a dummy client or throw a controlled error that won't crash the whole app on load
+      aiClient = new GoogleGenAI({ apiKey: "dummy_key_to_prevent_crash_check_console" });
+    } else {
+      aiClient = new GoogleGenAI({ apiKey: key as string });
+    }
+  }
+  return aiClient;
+};
 interface Message {
   id: string;
   role: "user" | "model";
@@ -44,7 +59,7 @@ export function Chatbot({ currentPath }: { currentPath?: string }) {
     setIsLoading(true);
     try {
       /* Build context for the AI */ const systemPrompt = ` You are Collab AI, a friendly and concise assistant for a team task management app. Persona: Short, sweet, helpful, and professional. Constraints: 1. Keep responses very brief (1-2 sentences maximum). 2. Use PLAIN TEXT ONLY. DO NOT use markdown like **bold**, *italics*, or lists. 3. Never use symbols like ** for emphasis. 4. Focus on providing direct answers or quick status updates. Current User: ${userProfile?.name || "User"} (${userProfile?.role || "Member"}) System Data for Context: - Tasks: ${tasks.length} total. - Team Members: ${users.length} total. Data Details: Tasks: ${tasks.map((t) => `${t.title} (${t.status})`).join(", ")} Members: ${users.map((u) => `${u.name} (${u.role})`).join(", ")} `;
-      const chat = ai.chats.create({
+      const chat = getAi().chats.create({
         model: "gemini-3-flash-preview",
         config: { systemInstruction: systemPrompt },
       });

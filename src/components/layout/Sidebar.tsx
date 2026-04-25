@@ -20,6 +20,7 @@ import {
   Link2,
   Sparkles,
   MessageCircle,
+  Home,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import { Avatar } from "../ui/Avatar";
@@ -35,7 +36,8 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
   const { apps } = useData();
   const [isExpanded, setIsExpanded] = useState(false);
-  const menuItems = [
+  const menuItems: { icon: any, path: string, label: string, badge?: string }[] = [
+    { icon: Home, path: "/", label: "Dashboard" },
     { icon: LayoutDashboard, path: "/roadmap", label: "Roadmap" },
     { icon: Pause, path: "/board", label: "Board" },
     { icon: Sparkles, path: "/ai-insights", label: "AI Insights" },
@@ -45,7 +47,7 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
       : []),
     { icon: MessageCircle, path: "/chat", label: "Chat" },
     { icon: Target, path: "/goals", label: "Goals" },
-    { icon: PieChart, path: "/reports", label: "Reports", badge: "12" },
+    { icon: PieChart, path: "/reports", label: "Reports" },
     { icon: Star, path: "/favorites", label: "Favorites" },
     { icon: Key, path: "/protection", label: "Protection" },
   ];

@@ -175,7 +175,7 @@ export function Header({
       }
     : { tasks: [], users: [] };
   return (
-    <header className="h-20 md:h-24 flex items-center justify-between px-4 md:px-8 bg-white/30 dark:bg-black/30 backdrop-blur-md border-b border-white/40 dark:border-white/10 transition-colors duration-300 gap-4">
+    <header className="relative z-20 h-20 md:h-24 flex items-center justify-between px-4 md:px-8 bg-white/30 dark:bg-black/30 backdrop-blur-md border-b border-white/40 dark:border-white/10 transition-colors duration-300 gap-4">
       {" "}
       {/* Left: Page Title & Team Context */}{" "}
       <div className="flex items-center gap-6 min-w-0 flex-shrink-0 max-w-[30%] lg:max-w-none">
@@ -248,7 +248,7 @@ export function Header({
           />
 
           {isSearchFocused && searchQuery && (
-            <div className="absolute top-14 left-0 right-0 max-h-96 overflow-y-auto glass-card text-slate-900 dark:text-slate-100 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute top-14 left-0 right-0 max-h-96 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
               {" "}
               {searchResults.tasks.length > 0 && (
                 <div className="mb-4">
@@ -362,7 +362,7 @@ export function Header({
             )}{" "}
           </button>{" "}
           {isNotificationsOpen && (
-            <div className="absolute right-0 mt-3 w-80 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+            <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
               {" "}
               <div className="p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 flex items-center justify-between">
                 {" "}
@@ -447,7 +447,7 @@ export function Header({
             />{" "}
           </button>{" "}
           {isProfileOpen && (
-            <div className="absolute right-0 mt-3 w-64 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+            <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
               {" "}
               <div className="p-4 border-b border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/5">
                 {" "}
@@ -461,9 +461,13 @@ export function Header({
               <div className="p-2">
                 {" "}
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
                     setIsProfileOpen(false);
+                    try {
+                      await logout();
+                    } catch (error) {
+                      console.error("Logout error", error);
+                    }
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors"
                 >

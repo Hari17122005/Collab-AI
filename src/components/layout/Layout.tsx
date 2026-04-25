@@ -15,7 +15,9 @@ import {
   Key,
   Sparkles,
   Link2,
-  Map
+  Map,
+  Sun,
+  Moon
 } from "lucide-react";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
@@ -36,10 +38,13 @@ import AIInsights from "@/src/pages/AIInsights";
 import Chat from "@/src/pages/Chat";
 import Teams from "@/src/pages/Teams";
 import { Chatbot } from "../Chatbot";
+import { useTheme } from "../../contexts/ThemeContext";
+
 export function Layout() {
   const [currentPath, setCurrentPath] = useState("/");
   const [isBooting, setIsBooting] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   /* App opening animation duration */ useEffect(() => {
     const timer = setTimeout(() => {
       setIsBooting(false);
@@ -334,6 +339,20 @@ export function Layout() {
                       </button>
                     )
                   })}
+                  
+                  {/* Theme Toggle in Mobile Menu */}
+                  <button
+                    onClick={toggleTheme}
+                    className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-white/5"
+                  >
+                    <div className="flex items-center gap-4">
+                      {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                      <span className="font-semibold">{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+                    </div>
+                    <div className={`w-11 h-6 rounded-full transition-colors flex items-center px-1 ${theme === 'dark' ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform ${theme === 'dark' ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </button>
                 </div>
               </motion.div>
             )}

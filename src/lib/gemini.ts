@@ -1,11 +1,25 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { User, Task } from "../types";
-/* Support both AI Studio's injected process.env AND standard local Vite import.meta.env */ const apiKey =
-  typeof process !== "undefined" && process.env && process.env.GEMINI_API_KEY
+/* Support both AI Studio's injected process.env AND standard local Vite import.meta.env */ const getApiKey = () => {
+  return typeof process !== "undefined" && process.env && process.env.GEMINI_API_KEY
     ? process.env.GEMINI_API_KEY
     // @ts-ignore
     : import.meta.env.VITE_GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey as string });
+};
+
+let aiClient: GoogleGenAI | null = null;
+const getAi = (): GoogleGenAI => {
+  if (!aiClient) {
+    const key = getApiKey();
+    if (!key) {
+      console.error("Gemini API key is missing. Please set VITE_GEMINI_API_KEY or GEMINI_API_KEY.");
+      aiClient = new GoogleGenAI({ apiKey: "dummy_key_to_prevent_crash_check_console" });
+    } else {
+      aiClient = new GoogleGenAI({ apiKey: key as string });
+    }
+  }
+  return aiClient;
+};
 const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
   try {
     return await fn();
@@ -22,7 +36,7 @@ const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): P
 export const geminiService = {
   async suggestTeams(projectDescription: string, members: User[]) {
     const prompt = ` Project Description: ${projectDescription} Team Members: ${members.map((m) => `- ${m.name} (${m.role}): Skills: ${m.skills?.join(", ") || "Not specified"}, Department: ${m.department}`).join("\n")} Based on the project description and member skills/roles, suggest optimal sub-teams. For each team, provide: 1. Team Name 2. Purpose 3. Members (with why they were chosen) `;
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry(() => getAi().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
@@ -47,7 +61,7 @@ export const geminiService = {
       };
     });
     const prompt = ` Current Workload Data: ${JSON.stringify(workloadData, null, 2)} Identify overloaded and underutilized members. Recommend task redistribution to balance the load more effectively. Consider task priority, deadlines, and member productivity scores. `;
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry(() => getAi().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
@@ -59,7 +73,7 @@ export const geminiService = {
   },
   async generateDocumentation(tasks: Task[], projectContext: string) {
     const prompt = ` Project Context: ${projectContext} Current Tasks and Progress: ${tasks.map((t) => `- ${t.title} (${t.status}): ${t.progress}% done. Deadline: ${t.deadline}`).join("\n")} Generate a professional project documentation/weekly status report. Include: 1. Executive Summary 2. Key Achievements 3. Pending Tasks and Blockers 4. Next Steps `;
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry(() => getAi().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {

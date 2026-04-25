@@ -41,7 +41,7 @@ export function Login() {
               {" "}
               <Activity className="h-8 w-8 text-white" />{" "}
             </div>{" "}
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2 text-center whitespace-nowrap">
               Welcome to Collab AI
             </h1>{" "}
             <p className="text-slate-500 dark:text-slate-400 text-center">
