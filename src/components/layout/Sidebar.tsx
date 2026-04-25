@@ -42,9 +42,7 @@ export function Sidebar({ currentPath, onNavigate }: SidebarProps) {
     { icon: Pause, path: "/board", label: "Board" },
     { icon: Sparkles, path: "/ai-insights", label: "AI Insights" },
     { icon: Users, path: "/team-details", label: "Team Details" },
-    ...(userProfile?.role === "Team Lead"
-      ? [{ icon: Shield, path: "/teams", label: "Manage Teams" }]
-      : []),
+    { icon: Shield, path: "/teams", label: userProfile?.role === "Team Lead" ? "Manage Teams" : "My Teams" },
     { icon: MessageCircle, path: "/chat", label: "Chat" },
     { icon: Target, path: "/goals", label: "Goals" },
     { icon: PieChart, path: "/reports", label: "Reports" },

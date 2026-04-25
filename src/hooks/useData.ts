@@ -8,6 +8,7 @@ import {
   orderBy,
   addDoc,
   updateDoc,
+  documentId,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import {
@@ -230,19 +231,26 @@ export function useData() {
         collection(db, "teams"),
         where("leadId", "==", currentUser.uid),
       );
-      unsubscribeManagedTeams = onSnapshot(
-        qManagedTeams,
-        (snapshot) => {
+      unsubscribeManagedTeams = onSnapshot(qManagedTeams, (snapshot) => {
+        const teamsData: Team[] = [];
+        snapshot.forEach((doc) => teamsData.push({ id: doc.id, ...doc.data() } as Team));
+        setManagedTeams(teamsData);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, "teams"));
+    } else {
+      if (userProfile.teamIds?.length > 0) {
+        // slice to first 10 for in-query limit
+        const qJoinedTeams = query(
+          collection(db, "teams"),
+          where(documentId(), "in", userProfile.teamIds.slice(0, 10))
+        );
+        unsubscribeManagedTeams = onSnapshot(qJoinedTeams, (snapshot) => {
           const teamsData: Team[] = [];
-          snapshot.forEach((doc) => {
-            teamsData.push({ id: doc.id, ...doc.data() } as Team);
-          });
+          snapshot.forEach((doc) => teamsData.push({ id: doc.id, ...doc.data() } as Team));
           setManagedTeams(teamsData);
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.LIST, "teams");
-        },
-      );
+        }, (error) => handleFirestoreError(error, OperationType.LIST, "teams"));
+      } else {
+        setManagedTeams([]);
+      }
     }
     setLoading(false);
     return () => {

@@ -16,20 +16,29 @@ import {
   CheckCircle2,
   Copy,
   Check,
+  Trash2,
+  LogOut,
+  X as XIcon,
 } from "lucide-react";
 import { db } from "../firebase";
-import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, updateDoc, query, where, getDocs, setDoc } from "firebase/firestore";
 import { cn } from "../lib/utils";
 export default function Teams() {
   const { managedTeams, loading } = useData();
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [status, setStatus] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [manageMembersTeamId, setManageMembersTeamId] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeamName.trim() || !userProfile?.uid) return;
@@ -42,9 +51,11 @@ export default function Teams() {
         joinCode: code,
         createdAt: new Date().toISOString(),
       });
-      /* Optionally switch to the new team immediately */ await updateDoc(
+      /* Optionally switch to the new team immediately */ 
+      const { arrayUnion } = await import("firebase/firestore");
+      await updateDoc(
         doc(db, "users", userProfile.uid),
-        { teamId: teamRef.id },
+        { teamId: teamRef.id, teamIds: arrayUnion(teamRef.id) },
       );
       setNewTeamName("");
       setIsCreating(false);
@@ -60,6 +71,46 @@ export default function Teams() {
       });
     }
   };
+
+  const handleJoinTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim() || !currentUser || !userProfile) return;
+    setStatus(null);
+    try {
+      const q = query(
+        collection(db, "teams"),
+        where("joinCode", "==", joinCode.toUpperCase()),
+      );
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        setStatus({ type: "error", message: "Invalid join code." });
+        return;
+      }
+      const teamDoc = querySnapshot.docs[0];
+      const teamData = teamDoc.data();
+      
+      await setDoc(doc(db, "joinRequests", currentUser.uid), {
+        userId: currentUser.uid,
+        userName: userProfile.name,
+        userEmail: userProfile.email,
+        teamId: teamDoc.id,
+        teamName: teamData.name,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      
+      setIsJoining(false);
+      setJoinCode("");
+      setStatus({
+        type: "success",
+        message: `Join request sent for "${teamData.name}". Pending approval!`,
+      });
+    } catch (err: any) {
+      console.error("Error sending join request:", err);
+      setStatus({ type: "error", message: err.message || "Failed to join team." });
+    }
+  };
+
   const handleSwitchTeam = async (teamId: string) => {
     if (!userProfile?.uid) return;
     try {
@@ -73,6 +124,83 @@ export default function Teams() {
       setStatus({ type: "error", message: "Failed to switch team." });
     }
   };
+
+  const handleLeaveTeam = async (teamId: string) => {
+    if (!userProfile?.uid) return;
+    if (!confirm("Are you sure you want to leave this team?")) return;
+    try {
+      const newTeamIds = (userProfile.teamIds || []).filter((id: string) => id !== teamId);
+      const updateData: any = { teamIds: newTeamIds };
+      if (userProfile.teamId === teamId) {
+        updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
+      }
+      await updateDoc(doc(db, "users", userProfile.uid), updateData);
+      setStatus({ type: "success", message: "Successfully left the team." });
+    } catch (err: any) {
+      console.error("Error leaving team:", err);
+      setStatus({ type: "error", message: "Failed to leave team." });
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string) => {
+    if (!userProfile?.uid) return;
+    if (!confirm("Are you sure you want to delete this team? All its data will be orphaned.")) return;
+    try {
+      const { deleteDoc } = await import("firebase/firestore");
+      await deleteDoc(doc(db, "teams", teamId));
+      
+      const newTeamIds = (userProfile.teamIds || []).filter((id: string) => id !== teamId);
+      const updateData: any = { teamIds: newTeamIds };
+      if (userProfile.teamId === teamId) {
+        updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
+      }
+      await updateDoc(doc(db, "users", userProfile.uid), updateData);
+      setStatus({ type: "success", message: "Team deleted successfully." });
+    } catch (err: any) {
+      console.error("Error deleting team:", err);
+      setStatus({ type: "error", message: "Failed to delete team." });
+    }
+  };
+
+  const handleOpenManageMembers = async (teamId: string) => {
+    setManageMembersTeamId(teamId);
+    setLoadingMembers(true);
+    try {
+      const q1 = query(collection(db, "users"), where("teamId", "==", teamId));
+      const q2 = query(collection(db, "users"), where("teamIds", "array-contains", teamId));
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      
+      const membersMap = new Map();
+      snap1.forEach(doc => membersMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      snap2.forEach(doc => membersMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      
+      setTeamMembers(Array.from(membersMap.values()));
+    } catch (err) {
+      console.error("Error fetching members:", err);
+    }
+    setLoadingMembers(false);
+  };
+
+  const handleRemoveMember = async (userId: string, teamId: string) => {
+    if (!confirm("Are you sure you want to remove this member?")) return;
+    try {
+      const user = teamMembers.find(u => u.id === userId);
+      if (!user) return;
+      
+      let newTeamIds = (user.teamIds || []).filter((id: string) => id !== teamId);
+      let updateData: any = { teamIds: newTeamIds };
+      if (user.teamId === teamId) {
+        updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
+      }
+      
+      await updateDoc(doc(db, "users", userId), updateData);
+      setTeamMembers(prev => prev.filter(u => u.id !== userId));
+    } catch(err) {
+      console.error(err);
+      alert("Failed to remove member");
+    }
+  };
+
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -93,19 +221,29 @@ export default function Teams() {
         <div>
           {" "}
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Your Managed Teams
+            {userProfile?.role === "Team Lead" ? "Your Managed Teams" : "Your Teams"}
           </h1>{" "}
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Manage, create, and switch between your leadership workspaces.
+            {userProfile?.role === "Team Lead" ? "Manage, create, and switch between your leadership workspaces." : "View and switch between your teams."}
           </p>{" "}
         </div>{" "}
-        <Button
-          onClick={() => setIsCreating(true)}
-          className="flex items-center gap-2 px-6 py-3 rounded-2xl shadow-lg shadow-blue-500/20 translate-y-0 hover:-translate-y-0.5 transition-all"
-        >
-          {" "}
-          <Plus className="h-5 w-5" /> Create New Team{" "}
-        </Button>{" "}
+        {userProfile?.role === "Team Lead" ? (
+          <Button
+            onClick={() => setIsCreating(true)}
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl shadow-lg shadow-blue-500/20 translate-y-0 hover:-translate-y-0.5 transition-all"
+          >
+            {" "}
+            <Plus className="h-5 w-5" /> Create New Team{" "}
+          </Button>
+        ) : (
+          <Button
+            onClick={() => setIsJoining(true)}
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl shadow-lg shadow-blue-500/20 translate-y-0 hover:-translate-y-0.5 transition-all"
+          >
+            {" "}
+            <Plus className="h-5 w-5" /> Join a Team{" "}
+          </Button>
+        )}
       </div>{" "}
       {status && (
         <div
@@ -130,7 +268,7 @@ export default function Teams() {
               className={cn(
                 "group transition-all duration-300",
                 isActive
-                  ? "ring-2 ring-blue-500 bg-blue-500/[0.02]"
+                  ? "shadow-[0_0_20px_rgba(59,130,246,0.2)] bg-blue-500/[0.02] border-transparent"
                   : "hover:bg-slate-50 dark:hover:bg-white/[0.02]",
               )}
             >
@@ -188,24 +326,46 @@ export default function Teams() {
                     </div>
                   )}{" "}
                 </div>{" "}
-                <div className="pt-4 flex items-center gap-3">
-                  {" "}
+                <div className="pt-4 flex flex-col sm:flex-row items-center gap-3">
                   <Button
                     variant={isActive ? "secondary" : "default"}
                     onClick={() => handleSwitchTeam(team.id)}
                     disabled={isActive}
-                    className="flex-1 rounded-xl h-11 text-sm font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    className="flex-1 w-full rounded-xl h-11 text-sm font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                   >
-                    {" "}
-                    {isActive ? "Currently Viewing" : "Switch To Team"}{" "}
-                  </Button>{" "}
-                  <Button
-                    variant="outline"
-                    className="px-3 rounded-xl h-11 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5"
-                  >
-                    {" "}
-                    <Shield className="h-4 w-4" />{" "}
-                  </Button>{" "}
+                    {isActive ? "Currently Viewing" : "Switch To Team"}
+                  </Button>
+                  <div className="flex w-full sm:w-auto items-center gap-2">
+                    {userProfile?.role === "Team Lead" ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleOpenManageMembers(team.id)}
+                          className="flex-1 sm:flex-initial px-3 rounded-xl h-11 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5"
+                          title="Manage Members"
+                        >
+                          <Users className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDeleteTeam(team.id)}
+                          className="flex-1 sm:flex-initial px-3 rounded-xl h-11 border-slate-200 dark:border-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                          title="Delete Team"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleLeaveTeam(team.id)}
+                        className="flex-1 sm:flex-initial px-3 rounded-xl h-11 border-slate-200 dark:border-white/10 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 text-slate-500"
+                        title="Leave Team"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>{" "}
               </CardContent>{" "}
             </Card>
@@ -285,6 +445,107 @@ export default function Teams() {
           </Card>{" "}
         </div>
       )}{" "}
+      {isJoining && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+          {" "}
+          <Card className="w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300">
+            {" "}
+            <CardHeader>
+              {" "}
+              <CardTitle className="text-2xl font-bold">
+                Join a Team
+              </CardTitle>{" "}
+            </CardHeader>{" "}
+            <CardContent className="space-y-6">
+              {" "}
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Ask your Team Lead for a join code and paste it below.
+              </p>{" "}
+              <form onSubmit={handleJoinTeam} className="space-y-4">
+                {" "}
+                <input
+                  autoFocus
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  placeholder="Enter 6-character code"
+                  className="w-full bg-slate-50 dark:bg-slate-800/10 rounded-2xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all uppercase"
+                  maxLength={6}
+                  required
+                />{" "}
+                <div className="flex items-center gap-3 pt-2">
+                  {" "}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsJoining(false)}
+                    className="flex-1 rounded-xl h-12"
+                  >
+                    {" "}
+                    Cancel{" "}
+                  </Button>{" "}
+                  <Button
+                    type="submit"
+                    disabled={joinCode.length < 6}
+                    className="flex-1 rounded-xl h-12 shadow-lg shadow-blue-500/20"
+                  >
+                    {" "}
+                    Request to Join{" "}
+                  </Button>{" "}
+                </div>{" "}
+              </form>{" "}
+            </CardContent>{" "}
+          </Card>{" "}
+        </div>
+      )}{" "}
+      {manageMembersTeamId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+          <Card className="w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-2xl font-bold">Manage Members</CardTitle>
+              <button
+                onClick={() => setManageMembersTeamId(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <XIcon className="h-5 w-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
+              {loadingMembers ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <p className="text-center text-slate-500 py-8">No members found.</p>
+              ) : (
+                <div className="space-y-3">
+                  {teamMembers.map((member) => (
+                    <div key={member.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                          {member.name}
+                          {member.id === userProfile?.uid && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full dark:bg-blue-900/30 dark:text-blue-300">You</span>}
+                        </p>
+                        <p className="text-xs text-slate-500">{member.email}</p>
+                      </div>
+                      {member.id !== userProfile?.uid && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleRemoveMember(member.id, manageMembersTeamId)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 w-full sm:w-auto"
+                          size="sm"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

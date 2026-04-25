@@ -29,6 +29,7 @@ import {
   UserPlus,
   X,
   CheckCircle,
+  ChevronDown,
 } from "lucide-react";
 import { db } from "../firebase";
 import {
@@ -39,7 +40,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 export function Dashboard() {
-  const { tasks, users, joinRequests, securityLogs, loading } = useData();
+  const { tasks, users, joinRequests, securityLogs, loading, managedTeams } = useData();
   const { userProfile, teamData } = useAuth();
   const [copied, setCopied] = React.useState(false);
   const [teamName, setTeamName] = React.useState("");
@@ -47,6 +48,30 @@ export function Dashboard() {
   const [processingRequest, setProcessingRequest] = React.useState<
     string | null
   >(null);
+  const [showTeamDropdown, setShowTeamDropdown] = React.useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowTeamDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSwitchTeam = async (teamId: string) => {
+    if (!userProfile?.uid) return;
+    try {
+      await updateDoc(doc(db, "users", userProfile.uid), { teamId: teamId });
+      setShowTeamDropdown(false);
+    } catch (err) {
+      console.error("Error switching team:", err);
+    }
+  };
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamName.trim() || !userProfile?.uid) return;
@@ -76,8 +101,10 @@ export function Dashboard() {
       await updateDoc(doc(db, "joinRequests", request.id), {
         status: "approved",
       });
+      const { arrayUnion } = await import("firebase/firestore");
       await updateDoc(doc(db, "users", request.userId), {
         teamId: request.teamId,
+        teamIds: arrayUnion(request.teamId),
         role: "Team Member",
       });
     } catch (err) {
@@ -137,14 +164,45 @@ export function Dashboard() {
       <div className="flex flex-wrap items-center justify-between gap-4 md:gap-6">
         {" "}
         <div className="space-y-1">
-          {" "}
-          <h1 className="text-2xl md:text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {" "}
-            Welcome back, {userProfile?.name?.split(" ")[0] || "User"}! 👋{" "}
-          </h1>{" "}
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+            <h1 className="text-2xl md:text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Welcome back, {userProfile?.name?.split(" ")[0] || "User"}! 👋
+            </h1>
+            {managedTeams.length > 0 && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setShowTeamDropdown(!showTeamDropdown)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
+                  <span className="truncate max-w-[120px]">
+                    {teamData?.name || "Select Team"}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showTeamDropdown ? "rotate-180" : ""}`} />
+                </button>
+                {showTeamDropdown && (
+                  <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    {managedTeams.map((team) => (
+                      <button
+                        key={team.id}
+                        onClick={() => handleSwitchTeam(team.id)}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between ${
+                          team.id === userProfile?.teamId
+                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                            : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                        }`}
+                      >
+                        <span className="truncate">{team.name}</span>
+                        {team.id === userProfile?.teamId && <CheckCircle className="h-4 w-4 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <p className="text-sm md:text-base text-slate-500 dark:text-slate-400">
             Here's what's happening.
-          </p>{" "}
+          </p>
         </div>{" "}
         {userProfile?.role === "Team Lead" && teamData?.joinCode && (
           <div className="glass-card flex items-center gap-3 p-2 shadow-sm shrink-0">

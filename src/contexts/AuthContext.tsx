@@ -65,15 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 let profile: any = null;
                 if (userSnap.exists()) {
                   profile = { ...userSnap.data(), uid: user.uid };
-                  const selectedRole = sessionStorage.getItem("selectedRole");
-                  if (
-                    selectedRole &&
-                    !profile.teamId &&
-                    profile.role !== selectedRole
-                  ) {
-                    await updateDoc(userRef, { role: selectedRole });
-                    /* The next snapshot will have the updated role */ return;
-                  }
                 } else {
                   const selectedRole =
                     sessionStorage.getItem("selectedRole") || "Team Member";

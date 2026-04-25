@@ -107,7 +107,7 @@ export function Layout() {
       case "/team-details":
         return "Team Details";
       case "/teams":
-        return "Manage Teams";
+        return "Teams";
       case "/chat":
         return "Team Chat";
       case "/apps":
@@ -314,7 +314,7 @@ export function Layout() {
                     { icon: Sparkles, path: "/ai-insights", label: "AI Insights" },
                     { icon: Target, path: "/goals", label: "Goals" },
                     { icon: Users, path: "/team-details", label: "Team Details" },
-                    { icon: Shield, path: "/teams", label: "Manage Teams" },
+                    { icon: Shield, path: "/teams", label: "Teams" },
                     { icon: User, path: "/profile", label: "Profile" },
                     { icon: Star, path: "/favorites", label: "Favorites" },
                     { icon: Key, path: "/protection", label: "Protection" },

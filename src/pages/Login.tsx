@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "../firebase";
+import { auth, googleProvider, db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Activity } from "lucide-react";
@@ -14,12 +14,27 @@ export function Login() {
       setError("");
       setLoading(true);
       sessionStorage.setItem("selectedRole", role);
-      await signInWithPopup(auth, googleProvider);
+      const userCredential = await signInWithPopup(auth, googleProvider);
+      
+      const { getDoc, doc } = await import("firebase/firestore");
+      const userRef = doc(db, "users", userCredential.user.uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (userSnap.exists()) {
+        const profile = userSnap.data();
+        if (profile.role && profile.role !== role) {
+          await auth.signOut();
+          setError(`Account exists as ${profile.role}. Please login with correct role.`);
+          setLoading(false);
+          return;
+        }
+      }
+      
       navigate("/");
     } catch (err: any) {
       setError("Failed to sign in with Google. " + err.message);
     } finally {
-      setLoading(false);
+      if(!error) setLoading(false);
     }
   };
   return (
