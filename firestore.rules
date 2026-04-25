@@ -29,9 +29,8 @@ service cloud.firestore {
 
     function isLeadOfTeam(teamId) {
       return isAuthenticated() && teamId != null && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Team Lead' &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId) ||
+        (exists(/databases/$(database)/documents/teams/$(teamId)) && 
+         get(/databases/$(database)/documents/teams/$(teamId)).data.leadId == request.auth.uid) ||
         (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
       );
     }
@@ -62,7 +61,8 @@ service cloud.firestore {
              (!('reminderIntervalMinutes' in data) || data.reminderIntervalMinutes is number) &&
              (!('lastReminderSentAt' in data) || data.lastReminderSentAt is string) &&
              (!('assignedEmailSent' in data) || data.assignedEmailSent is bool) &&
-             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string) &&
+             (!('riskLevel' in data) || data.riskLevel in ['low', 'medium', 'high']) &&
              (!('comments' in data) || data.comments is list);
     }
 
@@ -75,15 +75,9 @@ service cloud.firestore {
     }
 
     function isValidJoinRequest(data) {
-      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'teamId', 'teamName', 'teamLeadId', 'status', 'createdAt']) &&
-             data.userId is string && data.userId.size() > 0 &&
-             data.userName is string && data.userName.size() > 0 &&
-             data.userEmail is string && data.userEmail.size() > 0 &&
-             data.teamId is string && data.teamId.size() > 0 &&
-             data.teamName is string && data.teamName.size() > 0 &&
-             data.teamLeadId is string &&
-             data.status in ['pending', 'approved', 'rejected'] &&
-             data.createdAt is string && data.createdAt.size() > 0;
+      return data.keys().hasAll(['userId', 'teamId', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.status in ['pending', 'approved', 'rejected'];
     }
 
     function isValidApp(data) {
@@ -98,11 +92,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (
-        isOwner(userId) || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid) ||
                     (isAuthenticated() && isValidUser(request.resource.data) &&
@@ -120,7 +110,7 @@ service cloud.firestore {
       );
       allow list: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
-        resource.data.get('teamLeadId', '') == request.auth.uid ||
+        resource.data.teamLeadId == request.auth.uid ||
         (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
       );
       allow create: if isAuthenticated() && 
@@ -128,14 +118,14 @@ service cloud.firestore {
                     request.resource.data.userId == request.auth.uid && 
                     requestId == request.auth.uid + '_' + request.resource.data.teamId;
       allow update: if isAuthenticated() && (
-                      (request.resource.data.userId == request.auth.uid && requestId == request.auth.uid + '_' + request.resource.data.teamId) ||
+                      (isValidJoinRequest(request.resource.data) && request.resource.data.userId == request.auth.uid && requestId == request.auth.uid + '_' + request.resource.data.teamId) ||
                       (get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
                     );
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadId == request.auth.uid);
     }
 
     match /tasks/{taskId} {
-      allow read: if isTaskTeamMember(resource.data);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidTask(request.resource.data) && 
                     isLeadOfTeam(request.resource.data.teamId);
       allow update: if isAuthenticated() && isValidTask(request.resource.data) && (
@@ -153,28 +143,19 @@ service cloud.firestore {
     }
 
     match /apps/{appId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow create: if isTeamMember(request.resource.data.teamId);
       allow update: if isTeamMember(resource.data.teamId);
       allow delete: if isTeamMember(resource.data.teamId);
     }
 
     match /securityLogs/{logId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.teamId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId;
     }
 
     match /teamSettings/{teamId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isLeadOfTeam(teamId);
     }
 
@@ -186,20 +167,14 @@ service cloud.firestore {
     }
 
     match /roadmapPhases/{phaseId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId);
       allow update: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
       allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
     }
 
     match /goals/{goalId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == resource.data.teamId ||
-        (request.auth.token.email == "hariharan4545123@gmail.com" && request.auth.token.email_verified == true)
-      );
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isLeadOfTeam(request.resource.data.teamId);
       allow update: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
       allow delete: if isAuthenticated() && isLeadOfTeam(resource.data.teamId);
@@ -213,7 +188,7 @@ service cloud.firestore {
     }
 
     match /automatedEmails/{emailId} {
-      allow read: if isTaskTeamMember(resource.data);
+      allow read: if isAuthenticated();
       allow create: if isTaskTeamMember(request.resource.data);
     }
   }

@@ -95,11 +95,12 @@ export default function Teams() {
         userEmail: userProfile.email || "unknown@example.com",
         teamId: teamDoc.id,
         teamName: teamData.name || "Unknown Team",
+        teamLeadId: teamData.leadId || "",
         status: "pending",
         createdAt: new Date().toISOString(),
       };
       console.log("Sending join request:", joinRequestData);
-      await setDoc(doc(db, "joinRequests", currentUser.uid), joinRequestData);
+      await setDoc(doc(db, "joinRequests", `${currentUser.uid}_${teamDoc.id}`), joinRequestData);
       
       setIsJoining(false);
       setJoinCode("");

@@ -336,13 +336,15 @@ export function Header({
       {/* Right: Actions */}{" "}
       <div className="flex items-center gap-2 lg:gap-4 shrink-0">
         {" "}
-        <button
-          onClick={() => onNavigate("/board")}
-          className="hidden xl:flex items-center gap-2 px-6 py-2.5 rounded-full bg-blue-600 text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:bg-blue-500 hover:-translate-y-0.5 transition-all"
-        >
-          {" "}
-          <Plus className="h-4 w-4" /> Create{" "}
-        </button>{" "}
+        {userProfile?.role === "Team Lead" && (
+          <button
+            onClick={() => onNavigate("/board")}
+            className="hidden xl:flex items-center gap-2 px-6 py-2.5 rounded-full bg-blue-600 text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:bg-blue-500 hover:-translate-y-0.5 transition-all"
+          >
+            {" "}
+            <Plus className="h-4 w-4" /> Create{" "}
+          </button>
+        )}{" "}
         <button
           onClick={() => onNavigate("/chat")}
           className="relative p-2.5 rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-white transition-colors"
@@ -462,22 +464,6 @@ export function Header({
               </div>{" "}
               <div className="p-2">
                 {" "}
-                <button
-                  onClick={async () => {
-                     setIsProfileOpen(false);
-                     try {
-                        if (userProfile?.uid) {
-                           const newRole = userProfile.role === "Team Lead" ? "Team Member" : "Team Lead";
-                           await updateDoc(doc(db, "users", userProfile.uid), { role: newRole });
-                           window.location.reload();
-                        }
-                     } catch(err) { console.error(err) }
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors mb-1"
-                >
-                  <span>Switch to {userProfile?.role === "Team Lead" ? "Team Member" : "Team Lead"}</span>
-                  <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 px-2 py-0.5 rounded-full flex-shrink-0">Test</span>
-                </button>
                 <button
                   onClick={async () => {
                     setIsProfileOpen(false);

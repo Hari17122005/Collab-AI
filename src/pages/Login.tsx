@@ -30,7 +30,13 @@ export function Login() {
       
       navigate("/");
     } catch (err: any) {
-      setError("Failed to sign in with Google. " + err.message);
+      if (err.code === "auth/network-request-failed" || err.code === "auth/popup-closed-by-user" || err.code === "auth/web-storage-unsupported") {
+        setError(
+          `Sign in failed (${err.code}). If you are viewing this inside the preview, third-party cookies might be blocked or the popup was prevented. Please open the app in a new tab (click the icon in the top right) to sign in successfully.`
+        );
+      } else {
+        setError("Failed to sign in with Google. " + err.message);
+      }
     } finally {
       if(!error) setLoading(false);
     }

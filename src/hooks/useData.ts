@@ -70,7 +70,7 @@ export function useData() {
     );
     const qUsers = query(
       collection(db, "users"),
-      where("teamId", "==", userProfile.teamId),
+      where("teamIds", "array-contains", userProfile.teamId),
     );
     const unsubscribeUsers = onSnapshot(
       qUsers,
