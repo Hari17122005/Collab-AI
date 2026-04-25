@@ -84,8 +84,10 @@ export function Dashboard() {
         joinCode: code,
         createdAt: new Date().toISOString(),
       });
+      const { arrayUnion } = await import("firebase/firestore");
       await updateDoc(doc(db, "users", userProfile.uid), {
         teamId: teamRef.id,
+        teamIds: arrayUnion(teamRef.id),
         role: "Team Lead",
       });
       setTeamName("");
@@ -168,18 +170,20 @@ export function Dashboard() {
             <h1 className="text-2xl md:text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               Welcome back, {userProfile?.name?.split(" ")[0] || "User"}! 👋
             </h1>
-            {managedTeams.length > 0 && (
+            {(managedTeams.length > 0 || teamData) && (
               <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={() => setShowTeamDropdown(!showTeamDropdown)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200"
+                  onClick={() => managedTeams.length > 0 && setShowTeamDropdown(!showTeamDropdown)}
+                  className={`flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-sm text-sm font-medium text-slate-700 dark:text-slate-200 ${managedTeams.length > 0 ? "hover:bg-white/80 dark:hover:bg-slate-800/80" : "cursor-default opacity-80"}`}
                 >
                   <span className="truncate max-w-[120px]">
                     {teamData?.name || "Select Team"}
                   </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showTeamDropdown ? "rotate-180" : ""}`} />
+                  {managedTeams.length > 0 && (
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showTeamDropdown ? "rotate-180" : ""}`} />
+                  )}
                 </button>
-                {showTeamDropdown && (
+                {showTeamDropdown && managedTeams.length > 0 && (
                   <div className="absolute left-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1">
                     {managedTeams.map((team) => (
                       <button
@@ -271,6 +275,33 @@ export function Dashboard() {
               </form>{" "}
             </div>{" "}
           </CardContent>{" "}
+        </Card>
+      )}
+      {userProfile?.role !== "Team Lead" && !userProfile?.teamId && (
+        <Card className="border-blue-500/30 bg-blue-500/5 backdrop-blur-xl">
+          <CardContent className="p-10">
+            <div className="max-w-md mx-auto text-center space-y-8">
+              <div className="h-20 w-20 rounded-3xl bg-blue-500/20 flex items-center justify-center mx-auto shadow-xl shadow-blue-500/10">
+                <Users className="h-10 w-10 text-blue-400" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  Join a Team
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400">
+                  Connect with your team workspace to view tasks, goals, and more.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  window.location.href = "/teams";
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-600/25 disabled:opacity-50"
+              >
+                Go to Teams Page
+              </button>
+            </div>
+          </CardContent>
         </Card>
       )}{" "}
       {/* MODERN MINIMALISTIC DASHBOARD */}{" "}

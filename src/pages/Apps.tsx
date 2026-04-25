@@ -79,7 +79,6 @@ export default function Apps() {
     }
   };
   const handleDelete = async (appId: string) => {
-    if (!window.confirm("Delete this app integration?")) return;
     const app = apps.find((a) => a.id === appId);
     try {
       await deleteDoc(doc(db, "apps", appId));

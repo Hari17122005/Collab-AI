@@ -208,7 +208,7 @@ export function useData() {
     if (userProfile.role === "Team Lead") {
       const qRequests = query(
         collection(db, "joinRequests"),
-        where("teamId", "==", userProfile.teamId),
+        where("teamLeadId", "==", userProfile.uid),
         where("status", "==", "pending"),
       );
       unsubscribeRequests = onSnapshot(
@@ -237,11 +237,12 @@ export function useData() {
         setManagedTeams(teamsData);
       }, (error) => handleFirestoreError(error, OperationType.LIST, "teams"));
     } else {
-      if (userProfile.teamIds?.length > 0) {
+      const joinedTeamIds = userProfile.teamIds?.length > 0 ? userProfile.teamIds : (userProfile.teamId ? [userProfile.teamId] : []);
+      if (joinedTeamIds.length > 0) {
         // slice to first 10 for in-query limit
         const qJoinedTeams = query(
           collection(db, "teams"),
-          where(documentId(), "in", userProfile.teamIds.slice(0, 10))
+          where(documentId(), "in", joinedTeamIds.slice(0, 10))
         );
         unsubscribeManagedTeams = onSnapshot(qJoinedTeams, (snapshot) => {
           const teamsData: Team[] = [];

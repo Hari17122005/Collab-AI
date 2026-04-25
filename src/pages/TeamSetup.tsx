@@ -30,9 +30,7 @@ export function TeamSetup() {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pendingRequest, setPendingRequest] = useState<JoinRequest | null>(
-    null,
-  );
+  const [pendingRequests, setPendingRequests] = useState<JoinRequest[]>([]);
   useEffect(() => {
     if (!currentUser) return;
     const q = query(
@@ -42,15 +40,11 @@ export function TeamSetup() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const request = {
-            id: snapshot.docs[0].id,
-            ...snapshot.docs[0].data(),
-          } as JoinRequest;
-          setPendingRequest(request);
-        } else {
-          setPendingRequest(null);
-        }
+        const requests: JoinRequest[] = [];
+        snapshot.forEach((doc) => {
+          requests.push({ id: doc.id, ...doc.data() } as JoinRequest);
+        });
+        setPendingRequests(requests);
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, "joinRequests");
@@ -69,6 +63,7 @@ export function TeamSetup() {
         where("joinCode", "==", joinCode.toUpperCase()),
       );
       const querySnapshot = await getDocs(q);
+      console.log("querySnapshot size", querySnapshot.size);
       if (querySnapshot.empty) {
         setError("Invalid join code. Please check with your Team Lead.");
         setLoading(false);
@@ -76,32 +71,31 @@ export function TeamSetup() {
       }
       const teamDoc = querySnapshot.docs[0];
       const teamData = teamDoc.data();
-      await setDoc(doc(db, "joinRequests", currentUser.uid), {
+      const joinRequestData = {
         userId: currentUser.uid,
-        userName: userProfile.name,
-        userEmail: userProfile.email,
+        userName: userProfile.name || "Unknown",
+        userEmail: userProfile.email || "unknown@example.com",
         teamId: teamDoc.id,
-        teamName: teamData.name,
+        teamName: teamData.name || "Unknown Team",
+        teamLeadId: teamData.leadId || "",
         status: "pending",
         createdAt: new Date().toISOString(),
-      });
+      };
+      console.log("Sending join request:", joinRequestData);
+      await setDoc(doc(db, "joinRequests", `${currentUser.uid}_${teamDoc.id}`), joinRequestData);
     } catch (err: any) {
-      console.error("Error sending join request:", err);
+      console.error("Error querying teams or sending join request:", err);
       setError(err.message || "Failed to send request. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-  const handleCancelRequest = async () => {
-    if (!pendingRequest) return;
+  const handleCancelRequest = async (requestId: string) => {
     setLoading(true);
     try {
-      /* We don't actually delete, maybe just update status or let user send new one */ /* For simplicity, let's allow deleting pending requests */ const requestRef =
-        doc(
-          db,
-          "joinRequests",
-          pendingRequest.id,
-        ); /* deleteDoc(requestRef); */ /* Need to import deleteDoc */
+      const { deleteDoc } = await import("firebase/firestore");
+      const requestRef = doc(db, "joinRequests", requestId);
+      await deleteDoc(requestRef);
     } catch (err) {
       console.error("Error cancelling request:", err);
     } finally {
@@ -131,8 +125,8 @@ export function TeamSetup() {
             </h1>{" "}
             <p className="text-slate-500 dark:text-slate-400 text-center">
               {" "}
-              {pendingRequest
-                ? "Your request is being reviewed."
+              {pendingRequests.length > 0
+                ? "Your requests are below."
                 : "Enter a join code to request access to a team."}{" "}
             </p>{" "}
           </div>{" "}
@@ -142,109 +136,121 @@ export function TeamSetup() {
               {error}{" "}
             </div>
           )}{" "}
-          {pendingRequest ? (
-            <div className="space-y-6">
+          
+          <form onSubmit={handleJoinRequest} className="space-y-4 mb-8">
+            {" "}
+            <div>
               {" "}
-              <div
-                className={cn(
-                  "p-6 rounded-2xl border flex flex-col items-center text-center gap-4",
-                  pendingRequest.status === "pending"
-                    ? "bg-amber-500/5 border-amber-500/20"
-                    : pendingRequest.status === "approved"
-                      ? "bg-emerald-500/5 border-emerald-500/20"
-                      : "bg-red-500/5 border-red-500/20",
-                )}
-              >
-                {" "}
-                {pendingRequest.status === "pending" && (
-                  <Clock className="h-12 w-12 text-amber-500 animate-pulse" />
-                )}{" "}
-                {pendingRequest.status === "approved" && (
-                  <CheckCircle className="h-12 w-12 text-emerald-500" />
-                )}{" "}
-                {pendingRequest.status === "rejected" && (
-                  <XCircle className="h-12 w-12 text-red-500" />
-                )}{" "}
-                <div>
-                  {" "}
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100">
-                    {" "}
-                    {pendingRequest.status === "pending" &&
-                      "Request Pending"}{" "}
-                    {pendingRequest.status === "approved" &&
-                      "Request Approved!"}{" "}
-                    {pendingRequest.status === "rejected" &&
-                      "Request Rejected"}{" "}
-                  </h3>{" "}
-                  <p className="text-sm text-slate-500 mt-1">
-                    {" "}
-                    Team:{" "}
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      {pendingRequest.teamName}
-                    </span>{" "}
-                  </p>{" "}
-                </div>{" "}
-                {pendingRequest.status === "rejected" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setPendingRequest(null)}
-                    className="w-full mt-2"
-                  >
-                    {" "}
-                    Try Another Code{" "}
-                  </Button>
-                )}{" "}
-              </div>{" "}
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center justify-center gap-2"
-              >
-                {" "}
-                <ArrowLeft className="h-4 w-4" /> Switch Account{" "}
-              </button>{" "}
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Join Code
+              </label>{" "}
+              <input
+                type="text"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                className="w-full bg-transparent border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase placeholder:normal-case placeholder:text-slate-400"
+                placeholder="Enter 6-character code"
+                maxLength={6}
+                required
+                disabled={loading}
+              />{" "}
+            </div>{" "}
+            <Button
+              type="submit"
+              disabled={loading || !joinCode.trim()}
+              className="w-full h-12 flex items-center justify-center gap-2"
+            >
+              {" "}
+              <LogIn className="h-5 w-5" /> Send Request{" "}
+            </Button>{" "}
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4">
+              {" "}
+              Ask your Team Lead for the 6-character join code. They will need
+              to approve your request.{" "}
+            </p>{" "}
+          </form>
+
+          {pendingRequests.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">Pending Requests</h3>
+              {pendingRequests.map(request => (
+                <div
+                  key={request.id}
+                  className={cn(
+                    "p-4 rounded-2xl border flex items-center gap-4",
+                    request.status === "pending"
+                      ? "bg-amber-500/5 border-amber-500/20"
+                      : request.status === "approved"
+                        ? "bg-emerald-500/5 border-emerald-500/20"
+                        : "bg-red-500/5 border-red-500/20",
+                  )}
+                >
+                  {request.status === "pending" && (
+                    <Clock className="h-8 w-8 text-amber-500 animate-pulse shrink-0" />
+                  )}
+                  {request.status === "approved" && (
+                    <CheckCircle className="h-8 w-8 text-emerald-500 shrink-0" />
+                  )}
+                  {request.status === "rejected" && (
+                    <XCircle className="h-8 w-8 text-red-500 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center justify-between">
+                      <span>
+                        {request.status === "pending" && "Request Pending"}
+                        {request.status === "approved" && "Request Approved!"}
+                        {request.status === "rejected" && "Request Rejected"}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                      Team: <span className="font-semibold text-slate-700 dark:text-slate-300">{request.teamName}</span>
+                    </p>
+                  </div>
+                  {request.status === "pending" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleCancelRequest(request.id)}
+                      disabled={loading}
+                      title="Cancel request"
+                      className="px-3"
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {request.status === "rejected" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleCancelRequest(request.id)}
+                      className="px-3"
+                    >
+                      Dismiss
+                    </Button>
+                  )}
+                  {request.status === "approved" && (
+                    <Button
+                      variant="default"
+                      onClick={() => {
+                        window.location.href = "/";
+                        handleCancelRequest(request.id);
+                      }}
+                      className="px-3"
+                    >
+                      Enter
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
-          ) : (
-            <form onSubmit={handleJoinRequest} className="space-y-4">
-              {" "}
-              <div>
-                {" "}
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Join Code
-                </label>{" "}
-                <input
-                  type="text"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  className="w-full bg-transparent border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase placeholder:normal-case placeholder:text-slate-400"
-                  placeholder="Enter 6-character code"
-                  maxLength={6}
-                  required
-                />{" "}
-              </div>{" "}
-              <Button
-                type="submit"
-                disabled={loading || !joinCode.trim()}
-                className="w-full h-12 flex items-center justify-center gap-2"
-              >
-                {" "}
-                <LogIn className="h-5 w-5" /> Send Request{" "}
-              </Button>{" "}
-              <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4">
-                {" "}
-                Ask your Team Lead for the 6-character join code. They will need
-                to approve your request.{" "}
-              </p>{" "}
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center justify-center gap-2 mt-4"
-              >
-                {" "}
-                <ArrowLeft className="h-4 w-4" /> Switch Account{" "}
-              </button>{" "}
-            </form>
-          )}{" "}
+          )}
+
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="w-full text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center justify-center gap-2 mt-8"
+          >
+            {" "}
+            <ArrowLeft className="h-4 w-4" /> Switch Account{" "}
+          </button>{" "}
         </div>{" "}
       </div>{" "}
     </div>

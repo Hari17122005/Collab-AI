@@ -55,7 +55,7 @@ export default function Teams() {
       const { arrayUnion } = await import("firebase/firestore");
       await updateDoc(
         doc(db, "users", userProfile.uid),
-        { teamId: teamRef.id, teamIds: arrayUnion(teamRef.id) },
+        { teamId: teamRef.id, teamIds: arrayUnion(teamRef.id), role: "Team Lead" },
       );
       setNewTeamName("");
       setIsCreating(false);
@@ -89,15 +89,17 @@ export default function Teams() {
       const teamDoc = querySnapshot.docs[0];
       const teamData = teamDoc.data();
       
-      await setDoc(doc(db, "joinRequests", currentUser.uid), {
+      const joinRequestData = {
         userId: currentUser.uid,
-        userName: userProfile.name,
-        userEmail: userProfile.email,
+        userName: userProfile.name || "Unknown",
+        userEmail: userProfile.email || "unknown@example.com",
         teamId: teamDoc.id,
-        teamName: teamData.name,
+        teamName: teamData.name || "Unknown Team",
         status: "pending",
         createdAt: new Date().toISOString(),
-      });
+      };
+      console.log("Sending join request:", joinRequestData);
+      await setDoc(doc(db, "joinRequests", currentUser.uid), joinRequestData);
       
       setIsJoining(false);
       setJoinCode("");
@@ -127,15 +129,21 @@ export default function Teams() {
 
   const handleLeaveTeam = async (teamId: string) => {
     if (!userProfile?.uid) return;
-    if (!confirm("Are you sure you want to leave this team?")) return;
     try {
       const newTeamIds = (userProfile.teamIds || []).filter((id: string) => id !== teamId);
       const updateData: any = { teamIds: newTeamIds };
       if (userProfile.teamId === teamId) {
         updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
       }
+      if (newTeamIds.length === 0) {
+        updateData.role = "Team Member";
+      }
       await updateDoc(doc(db, "users", userProfile.uid), updateData);
       setStatus({ type: "success", message: "Successfully left the team." });
+      
+      if (newTeamIds.length === 0) {
+        window.location.href = "/team-setup";
+      }
     } catch (err: any) {
       console.error("Error leaving team:", err);
       setStatus({ type: "error", message: "Failed to leave team." });
@@ -144,7 +152,6 @@ export default function Teams() {
 
   const handleDeleteTeam = async (teamId: string) => {
     if (!userProfile?.uid) return;
-    if (!confirm("Are you sure you want to delete this team? All its data will be orphaned.")) return;
     try {
       const { deleteDoc } = await import("firebase/firestore");
       await deleteDoc(doc(db, "teams", teamId));
@@ -154,8 +161,15 @@ export default function Teams() {
       if (userProfile.teamId === teamId) {
         updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
       }
+      if (newTeamIds.length === 0) {
+        updateData.role = "Team Member";
+      }
       await updateDoc(doc(db, "users", userProfile.uid), updateData);
       setStatus({ type: "success", message: "Team deleted successfully." });
+
+      if (newTeamIds.length === 0) {
+        window.location.href = "/team-setup";
+      }
     } catch (err: any) {
       console.error("Error deleting team:", err);
       setStatus({ type: "error", message: "Failed to delete team." });
@@ -182,7 +196,6 @@ export default function Teams() {
   };
 
   const handleRemoveMember = async (userId: string, teamId: string) => {
-    if (!confirm("Are you sure you want to remove this member?")) return;
     try {
       const user = teamMembers.find(u => u.id === userId);
       if (!user) return;
@@ -191,6 +204,9 @@ export default function Teams() {
       let updateData: any = { teamIds: newTeamIds };
       if (user.teamId === teamId) {
         updateData.teamId = newTeamIds.length > 0 ? newTeamIds[0] : null;
+      }
+      if (newTeamIds.length === 0) {
+        updateData.role = "Team Member";
       }
       
       await updateDoc(doc(db, "users", userId), updateData);
@@ -371,26 +387,33 @@ export default function Teams() {
             </Card>
           );
         })}{" "}
-        {managedTeams.length === 0 && !isCreating && (
+        {managedTeams.length === 0 && !isCreating && !isJoining && (
           <div className="md:col-span-2 text-center py-20 bg-slate-50 dark:bg-white/5 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-[2rem] space-y-4">
-            {" "}
             <div className="h-16 w-16 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto text-slate-300">
-              {" "}
-              <Users className="h-8 w-8" />{" "}
-            </div>{" "}
+              <Users className="h-8 w-8" />
+            </div>
             <p className="text-slate-500 font-medium">
-              You haven't created any teams yet.
-            </p>{" "}
-            <Button
-              onClick={() => setIsCreating(true)}
-              variant="outline"
-              className="rounded-xl"
-            >
-              {" "}
-              Create your first team{" "}
-            </Button>{" "}
+              {userProfile?.role === "Team Lead" ? "You haven't created any teams yet." : "You haven't joined any teams yet."}
+            </p>
+            {userProfile?.role === "Team Lead" ? (
+              <Button
+                onClick={() => setIsCreating(true)}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Create your first team
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setIsJoining(true)}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Join a team
+              </Button>
+            )}
           </div>
-        )}{" "}
+        )}
       </div>{" "}
       {isCreating && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">

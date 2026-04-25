@@ -15,8 +15,9 @@ import {
   MessageSquare,
   Send,
   AlertCircle,
+  Check,
 } from "lucide-react";
-import { Task, Comment } from "../../types";
+import { Task, Comment, Status } from "../../types";
 import { cn } from "@/src/lib/utils";
 interface TaskDetailsModalProps {
   task: Task | null;
@@ -28,19 +29,23 @@ export function TaskDetailsModal({
   isOpen,
   onClose,
 }: TaskDetailsModalProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const { users } = useData();
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [updateStatusMode, setUpdateStatusMode] = useState(false);
+  const [newStatus, setNewStatus] = useState<Status | "">("");
+  const [workDoneDescription, setWorkDoneDescription] = useState("");
   useEffect(() => {
     if (task) {
       setDescription(task.description || "");
       setDeadline(
         task.deadline ? format(parseISO(task.deadline), "yyyy-MM-dd") : "",
       );
+      setNewStatus(task.status);
     }
   }, [task]);
   if (!task) return null;
@@ -56,6 +61,44 @@ export function TaskDetailsModal({
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating task:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusSubmit = async () => {
+    if (!task || !currentUser || !newStatus) return;
+    setLoading(true);
+    let updatePayload: any = {
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+    };
+    if (newStatus === "done") {
+      updatePayload.progress = 100;
+    }
+    
+    try {
+      const taskRef = doc(db, "tasks", task.id);
+      
+      const p = [updateDoc(taskRef, updatePayload)];
+      
+      if (workDoneDescription.trim()) {
+        const comment: Comment = {
+          id: crypto.randomUUID(),
+          taskId: task.id,
+          userId: currentUser.uid,
+          content: `Status updated to ${newStatus}. ${workDoneDescription.trim()}`,
+          createdAt: new Date().toISOString(),
+        };
+        p.push(updateDoc(taskRef, { comments: arrayUnion(comment) }));
+      }
+      
+      await Promise.all(p);
+      setUpdateStatusMode(false);
+      setWorkDoneDescription("");
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+      alert("Error updating status: " + (error.message || String(error)));
     } finally {
       setLoading(false);
     }
@@ -97,10 +140,9 @@ export function TaskDetailsModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Task Details"
-      className="max-w-2xl"
     >
       {" "}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {" "}
         {/* Header Info */}{" "}
         <div className="flex flex-wrap items-center gap-3">
@@ -125,6 +167,78 @@ export function TaskDetailsModal({
         <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
           {task.title}
         </h3>{" "}
+
+        <div className="space-y-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              Status & Progress
+            </h4>
+            {!updateStatusMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setUpdateStatusMode(true)}
+                className="h-8 text-xs"
+              >
+                Update Status
+              </Button>
+            )}
+          </div>
+          {updateStatusMode ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Task Status
+                </label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as Status)}
+                  className="w-full glass-card text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="todo">To Do</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="review">In Review</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Progress Update Description (Required)
+                </label>
+                <textarea
+                  value={workDoneDescription}
+                  onChange={(e) => setWorkDoneDescription(e.target.value)}
+                  className="w-full glass-card text-slate-900 dark:text-slate-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[80px]"
+                  placeholder="Describe the work you have done..."
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setUpdateStatusMode(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleStatusSubmit} 
+                  disabled={loading || !workDoneDescription.trim()}
+                  size="sm"
+                >
+                  {loading ? "Saving..." : "Save Status"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+             <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-white/10">
+               <div>
+                  <p className="text-xs text-slate-500 mb-1">Current Status</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-200 capitalize">{task.status.replace("-", " ")}</p>
+               </div>
+               <div className="text-right">
+                  <p className="text-xs text-slate-500 mb-1">Progress</p>
+                  <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{task.progress}%</p>
+               </div>
+             </div>
+          )}
+        </div>
+
         {/* Description & Deadline */}{" "}
         <div className="space-y-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl ">
           {" "}
@@ -134,6 +248,7 @@ export function TaskDetailsModal({
               {" "}
               Description{" "}
             </h4>{" "}
+            {(userProfile?.role === "Team Lead" || userProfile?.role === "Team Member") && (
             <Button
               variant="ghost"
               size="sm"
@@ -142,7 +257,8 @@ export function TaskDetailsModal({
             >
               {" "}
               {isEditing ? "Cancel" : "Edit"}{" "}
-            </Button>{" "}
+            </Button>
+            )}
           </div>{" "}
           {isEditing ? (
             <div className="space-y-4">
@@ -192,13 +308,50 @@ export function TaskDetailsModal({
                   <Clock className="h-3.5 w-3.5" /> Deadline:{" "}
                   <span className="font-medium text-slate-700 dark:text-slate-300">
                     {" "}
-                    {format(parseISO(task.deadline), "MMM dd, yyyy")}{" "}
+                    {task.deadline ? format(parseISO(task.deadline), "MMM dd, yyyy") : 'No Date'}{" "}
                   </span>{" "}
                 </div>{" "}
               </div>{" "}
             </div>
           )}{" "}
         </div>{" "}
+
+        {/* Subtasks */}{" "}
+        {task.subtasks && task.subtasks.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Tasks List ({task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length})
+            </h4>
+            <div className="space-y-2">
+              {task.subtasks.map((sub) => (
+                <div key={sub.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
+                  <button
+                    onClick={async () => {
+                      if (!currentUser) return;
+                      const updatedSubtasks = task.subtasks!.map((s) =>
+                        s.id === sub.id ? { ...s, completed: !s.completed } : s,
+                      );
+                      const completed = updatedSubtasks.filter((s) => s.completed).length;
+                      const prog = Math.round((completed / updatedSubtasks.length) * 100);
+                      try {
+                        await updateDoc(doc(db, "tasks", task.id), {
+                          subtasks: updatedSubtasks,
+                          progress: prog,
+                        });
+                      } catch (err) { console.error(err); }
+                    }}
+                    className={cn("h-5 w-5 rounded border flex items-center justify-center transition-colors", sub.completed ? "bg-blue-500 border-blue-500" : "border-slate-300 dark:border-white/10")}
+                  >
+                    {sub.completed && <Check className="h-3 w-3 text-white" />}
+                  </button>
+                  <span className={cn("text-sm", sub.completed ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300")}>
+                    {sub.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Assignees & Progress */}{" "}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {" "}

@@ -23,10 +23,8 @@ export function Login() {
       if (userSnap.exists()) {
         const profile = userSnap.data();
         if (profile.role && profile.role !== role) {
-          await auth.signOut();
-          setError(`Account exists as ${profile.role}. Please login with correct role.`);
-          setLoading(false);
-          return;
+           const { updateDoc } = await import("firebase/firestore");
+           await updateDoc(userRef, { role: role });
         }
       }
       

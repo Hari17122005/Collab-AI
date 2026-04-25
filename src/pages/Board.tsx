@@ -4,6 +4,7 @@ import { Badge } from "../components/ui/Badge";
 import { Avatar } from "../components/ui/Avatar";
 import { Progress } from "../components/ui/Progress";
 import { Button } from "../components/ui/Button";
+import { TaskDetailsModal } from "../components/ui/TaskDetailsModal";
 import {
   Plus,
   MoreVertical,
@@ -38,6 +39,7 @@ export default function Board() {
   const { tasks, users } = useData();
   const { currentUser, userProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedViewTask, setSelectedViewTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState({
@@ -270,10 +272,9 @@ export default function Board() {
                     <Card
                       key={task.id}
                       className={cn(
-                        " glass-card text-slate-900 dark:text-slate-100 hover:border-blue-500/30 transition-all group",
-                        isLead && "cursor-pointer",
+                        " glass-card text-slate-900 dark:text-slate-100 hover:border-blue-500/30 transition-all group cursor-pointer",
                       )}
-                      onClick={() => isLead && handleOpenModal(task)}
+                      onClick={() => setSelectedViewTask(task)}
                     >
                       {" "}
                       <CardContent className="p-3 md:p-5 space-y-3 md:space-y-4">
@@ -296,16 +297,28 @@ export default function Board() {
                           <div className="flex items-center gap-2">
                             {" "}
                             {isLead && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(task.id);
-                                }}
-                                className="p-1 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                              >
-                                {" "}
-                                <Trash2 className="h-3.5 w-3.5" />{" "}
-                              </button>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenModal(task);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-blue-500 transition-colors"
+                                >
+                                  {" "}
+                                  <Edit2 className="h-3.5 w-3.5" />{" "}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(task.id);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                >
+                                  {" "}
+                                  <Trash2 className="h-3.5 w-3.5" />{" "}
+                                </button>
+                              </div>
                             )}{" "}
                             <div className="flex -space-x-2">
                               {" "}
@@ -712,6 +725,11 @@ export default function Board() {
           </div>
         )}{" "}
       </AnimatePresence>{" "}
+      <TaskDetailsModal
+        task={selectedViewTask}
+        isOpen={!!selectedViewTask}
+        onClose={() => setSelectedViewTask(null)}
+      />
     </div>
   );
 }

@@ -16,6 +16,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useData } from "../../hooks/useData";
 import { cn } from "../../lib/utils";
 import { useNavigate } from "react-router-dom";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../firebase";
 interface HeaderProps {
   title: string;
   currentPath?: string;
@@ -460,6 +462,22 @@ export function Header({
               </div>{" "}
               <div className="p-2">
                 {" "}
+                <button
+                  onClick={async () => {
+                     setIsProfileOpen(false);
+                     try {
+                        if (userProfile?.uid) {
+                           const newRole = userProfile.role === "Team Lead" ? "Team Member" : "Team Lead";
+                           await updateDoc(doc(db, "users", userProfile.uid), { role: newRole });
+                           window.location.reload();
+                        }
+                     } catch(err) { console.error(err) }
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors mb-1"
+                >
+                  <span>Switch to {userProfile?.role === "Team Lead" ? "Team Member" : "Team Lead"}</span>
+                  <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 px-2 py-0.5 rounded-full flex-shrink-0">Test</span>
+                </button>
                 <button
                   onClick={async () => {
                     setIsProfileOpen(false);
