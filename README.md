@@ -1,20 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+🤝 Collab AI: Team Task Management & Performance Platform
+License React TypeScript Firebase Gemini
 
-# Run and deploy your AI Studio app
+📌 Overview
+Collab AI is a modern, interactive web application designed to streamline team task management, goal tracking, and project roadmaps. Powered by Google Gemini AI, Collab AI enables teams to organize workflows, visualize progress, and boost productivity using an intuitive, responsive glassmorphism interface.
 
-This contains everything you need to run your app locally.
+✨ Key Features
+🧠 AI-Powered Insights: Leverage advanced machine learning models (Google Gemini) to interact with an AI assistant for task planning and workflow suggestions.
+📋 Dynamic Kanban Boards: Manage tasks efficiently with intuitive drag-and-drop boards built for collaborative, agile environments.
+🎯 Goal & Roadmap Tracking: Set team objectives, visualize project roadmaps, and track long-term milestones seamlessly.
+🔒 Role-Based Access Control: Securely manage team permissions with defined roles (e.g., Team Lead vs. Members) and dedicated protection settings.
+📈 Interactive Dashboards: Uncover productivity trends and insights using dynamic data visualization charts (powered by Recharts).
+👥 Multi-Team Architecture: Switch actively between multiple teams without losing membership or historical context.
 
-View your app in AI Studio: https://ai.studio/apps/7df73c7e-ee07-4278-900b-27d096dde62a
+🛠️ Tech Stack
+Frontend Framework: React 19 + TypeScript + Vite
+Styling & UI: Tailwind CSS v4, Motion (Animations), Lucide React (Icons)
+Data Visualization: Recharts
+Drag and Drop: @hello-pangea/dnd
+Backend & Database: Firebase (Authentication, Cloud Firestore)
+AI Integration: Google GenAI SDK (@google/genai)
 
-## Run Locally
+🚀 Getting Started
 
-**Prerequisites:**  Node.js
+1. Prerequisites
+Ensure you have the following installed on your local machine:
+Node.js (v18 or higher)
+npm or yarn
 
+2. Installation
+Clone the repository and install the required dependencies:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+git clone https://github.com/your-username/collab-ai.git
+cd collab-ai
+npm install
+
+3. Environment Variables
+Create a .env file in the root directory and add your necessary API Keys:
+
+VITE_GEMINI_API_KEY="your_gemini_api_key_here"
+
+Configure your Firebase credentials in the required firebase configuration files based on your setup.
+
+4. Run the Development Server
+npm run dev
+
+The application will be available at http://localhost:3000.
+
+🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the Project
+2. Create your Feature Branch (git checkout -b feature/AmazingFeature)
+3. Commit your Changes (git commit -m 'Add some AmazingFeature')
+4. Push to the Branch (git push origin feature/AmazingFeature)
+5. Open a Pull Request
+
+📄 License
+Distributed under the MIT License. See LICENSE for more information.
